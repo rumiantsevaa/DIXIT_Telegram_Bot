@@ -1,0 +1,67 @@
+import asyncio
+import random
+from config import *
+import aiohttp
+from telebot.async_telebot import AsyncTeleBot
+
+
+class AsyncioCurl:
+    def __init__(self):
+        self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4))
+
+# Состояния разговора
+START, WAIT_FOR_FRIEND, WAIT_FOR_SESSION_CODE = range(3)
+
+# Словарь для хранения сессий и игроков
+sessions = {}
+
+# Инициализация бота и диспетчера
+
+bot = AsyncTeleBot('TELEGRAM_TOKEN')
+
+
+@bot.message_handler(commands=['start'])
+async def start(message):
+    user_id = message.from_user.id
+    session_id = random.randint(1000, 9999)
+    sessions[session_id] = {'Player1': {'user_id': user_id, 'username': message.from_user.username}}
+    await bot.send_message(message.chat.id, f"Вы Player1. Пришлите это сообщение другу с командой /join и номером сессии: {session_id}")
+    sessions[session_id]['state'] = WAIT_FOR_FRIEND
+
+
+@bot.message_handler(commands=['join'])
+async def join(message):
+    user_id = message.from_user.id
+
+    if 'state' not in sessions.get(message.text, {}):
+        await bot.send_message(message.chat.id, "Дождитесь присоединения друга. Если хотите отменить игру, введите /start")
+        return
+
+    session_id = int(message.text.split()[-1])
+
+    if sessions[session_id]['state'] == WAIT_FOR_FRIEND and 'Player2' not in sessions[session_id]:
+        sessions[session_id]['Player2'] = {'user_id': user_id, 'username': message.from_user.username}
+        await bot.send_message(message.chat.id, f"Вы Player2. Вы присоединились к игре вашего друга {sessions[session_id]['Player1']['username']}")
+        await bot.send_message(message.chat.id, "Выбирайте карточку, не говорите оппоненту какую вы выбрали.")
+        sessions[session_id]['state'] = WAIT_FOR_SESSION_CODE
+    else:
+        await bot.send_message(message.chat.id, "Код номера сессии неверный. Пожалуйста, запросите новый или введите "
+                                                "/start")
+
+
+async def try_db_sesions():
+
+    try:
+        # Start the long-polling in a separate task
+        loop = asyncio.get_event_loop()
+        await loop.create_task(bot.polling(none_stop=True, interval=0))
+        await asyncio.sleep(3600)  # Keep the main script running for 1 hour (or any desired duration)
+    except KeyboardInterrupt:
+        await bot.close()
+    curl = AsyncioCurl()
+    await curl.session.close()
+
+# Run the bot
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(try_db_sesions())
