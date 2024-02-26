@@ -15,6 +15,9 @@ url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto'
 # Множество для хранения обработанных идентификаторов файлов
 processed_photo_ids = set()
 
+# ID группы
+GROUP_ID = bot.get_chat.id
+
 
 # Команда /help
 @bot.message_handler(commands=['help'])
@@ -51,7 +54,17 @@ def start_button_handler(message):
 
 
 @bot.message_handler(commands=['random_photos_generator'])
+# Команда /startiftake для работы в чате группы
+def start_id_take(message):
+    bot.send_message(message.chat.id, "Игрок 1 инициирует игру.")
+    bot.register_next_step_handler(message, photo_generator_command)
+
+
 def photo_generator_command(message):
+    bot.send_message(message.chat.id, message.from_user.username + " - Вы Игрок 1. Попросите партнера ввести /join для "
+                                                                   "получения статуса Игрок 2.")
+    player1 = message.from_user.username
+
     array_of_ids = []
     # Отправляем случайное фото из массива photo_file_ids
     for i in range(6):
@@ -60,7 +73,14 @@ def photo_generator_command(message):
     bot.send_media_group(message.chat.id, [types.InputMediaPhoto(media) for media in array_of_ids])
 
     # Отправляем текст "Выбирайте карточку, не говорите оппоненту какую вы выбрали."
-    bot.send_message(message.chat.id, "Выбирайте карточку, не говорите оппоненту какую вы выбрали.")
+    bot.send_message(message.chat.id, player1 + "  , выбирайте карточку, не говорите оппоненту какую вы выбрали.")
+
+
+def handle_join(message):
+    if message.text in trigger_list:
+        bot.send_message(message.chat.id, message.from_user.username + " - Вы Игрок 2.")
+        player2 = message.from_user.username
+        bot.send_message(message.chat.id, player2 + " , готовьтесь слушать обьяснения Игрока 1.")
 
 
 @bot.message_handler(commands=['photo_save'])
@@ -92,6 +112,8 @@ def handle_text(message):
         photo_generator_command(message)
     elif message.text.lower() == 'получить telegram photo id':
         photo_save_command(message)
+    elif message.text.lower() == '/join':
+        handle_join(message)
     elif message.text.lower() == 'привет':
         bot.send_message(message.chat.id, "Привет! Чтобы начать, нажмите /start")
     else:
