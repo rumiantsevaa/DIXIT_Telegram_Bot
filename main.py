@@ -16,7 +16,11 @@ url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto'
 processed_photo_ids = set()
 
 # ID группы
-GROUP_ID = bot.get_chat.id
+GROUP_ID = bot.get_chat("-100ххх").id
+PERSONAL_CHAT_ID = bot.get_chat("ххх").id
+# declare global variables outside any function by using the global keyword
+global player1
+global player2
 
 
 # Команда /help
@@ -24,7 +28,8 @@ GROUP_ID = bot.get_chat.id
 def help_command(message):
     help_message = (
 
-        "Команда 💫 DIXIT: Начать игру 💫 позволяет начать игру в DIXIT: 9 lives mod. Мод представляет из себя версию "
+        "Команда 💫 DIXIT: Начать новую игру 💫 позволяет начать игру в DIXIT: 9 lives mod. Мод представляет из себя "
+        "версию"
         "игры для двоих, которая проходит в девять раундов 🎲\n\n"
         "♦️ ПРАВИЛА ИГРЫ в DIXIT: 9 lives mod: ♦️\n"
         "Тут будет МНОГА БУКАФФ\n\n"
@@ -41,11 +46,11 @@ def start_button_handler(message):
     # Приветствие пользователя
     start_message = ("Здраствуйте! Я бот для игры в DIXIT: 9 lives mod. Мне кажется мы уже где-то виделись🤔 Но, "
                      "я совсем этого не помню. Чтобы начать игру,"
-                     "нажмите кнопку 💫 DIXIT: Начать игру 💫 или узнайте больше обо мне по команде /help.")
+                     "нажмите кнопку 💫 DIXIT: Начать новую игру 💫 или узнайте больше обо мне по команде /help.")
 
     # Создаем клавиатуру с кнопкой "Старт"
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    button1 = types.KeyboardButton("DIXIT: Начать игру")
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    button1 = types.KeyboardButton("DIXIT: Начать новую игру")
     button2 = types.KeyboardButton("Получить Telegram Photo ID")
     markup.add(button1, button2)
 
@@ -54,33 +59,41 @@ def start_button_handler(message):
 
 
 @bot.message_handler(commands=['random_photos_generator'])
-# Команда /startiftake для работы в чате группы
-def start_id_take(message):
-    bot.send_message(message.chat.id, "Игрок 1 инициирует игру.")
-    bot.register_next_step_handler(message, photo_generator_command)
-
-
 def photo_generator_command(message):
-    bot.send_message(message.chat.id, message.from_user.username + " - Вы Игрок 1. Попросите партнера ввести /join для "
-                                                                   "получения статуса Игрок 2.")
+    global player1
+    bot.send_message(PERSONAL_CHAT_ID, message.from_user.username + ", Вы ♦️ Игрок 1 ♦️ Попросите партнера ввести /join"
+                                                                    "для"
+                                                                    "получения статуса ♠️ Игрок 2 ♠️")
+    #    bot.forward_message(GROUP_ID, message.chat.id, message.message_id)
     player1 = message.from_user.username
 
+
+def handle_join(message: types.Message):
+    global player2
+    if message.text in trigger_list:
+        bot.send_message(GROUP_ID, message.from_user.username + " - Вы ♠️ Игрок 2 ♠️")
+        player2 = message.from_user.username
+        bot.send_message(GROUP_ID, message.from_user.username + " - получил статус ♠️ Игрок 2 ♠️")
+
+    # Создаём массив айди фотографий, девять элементов
     array_of_ids = []
-    # Отправляем случайное фото из массива photo_file_ids
-    for i in range(6):
+    for i in range(9):
         random_photo_id = random.choice(photo_file_ids)
         array_of_ids.append(random_photo_id)
-    bot.send_media_group(message.chat.id, [types.InputMediaPhoto(media) for media in array_of_ids])
+
+    # Отправляем массив айди для общего чата с к-м элементов : 9
+    bot.send_media_group(GROUP_ID, [types.InputMediaPhoto(media) for media in array_of_ids])
+
+    # Массив теряет три элемента,  мешается и отправляется Игроку 1
+    # Антихитрин
+    random.shuffle(array_of_ids)
+    del array_of_ids[6:9]
+    random.shuffle(array_of_ids)
+    bot.send_media_group(PERSONAL_CHAT_ID, [types.InputMediaPhoto(media) for media in array_of_ids])
 
     # Отправляем текст "Выбирайте карточку, не говорите оппоненту какую вы выбрали."
-    bot.send_message(message.chat.id, player1 + "  , выбирайте карточку, не говорите оппоненту какую вы выбрали.")
-
-
-def handle_join(message):
-    if message.text in trigger_list:
-        bot.send_message(message.chat.id, message.from_user.username + " - Вы Игрок 2.")
-        player2 = message.from_user.username
-        bot.send_message(message.chat.id, player2 + " , готовьтесь слушать обьяснения Игрока 1.")
+    bot.send_message(PERSONAL_CHAT_ID, player1 + "  , выбирайте карточку, не говорите оппоненту какую вы выбрали.")
+    bot.send_message(GROUP_ID, player2 + " , готовьтесь слушать обьяснения ♦️ Игрока 1 ♦️")
 
 
 @bot.message_handler(commands=['photo_save'])
@@ -108,7 +121,7 @@ def handle_photos(message):
 # Обработка любых текстовых сообщений
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
-    if message.text.lower() == 'dixit: начать игру':
+    if message.text.lower() == 'dixit: начать новую игру':
         photo_generator_command(message)
     elif message.text.lower() == 'получить telegram photo id':
         photo_save_command(message)
