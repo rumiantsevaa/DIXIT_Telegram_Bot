@@ -15,12 +15,27 @@ url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto'
 # Множество для хранения обработанных идентификаторов файлов
 processed_photo_ids = set()
 
-# ID группы
-GROUP_ID = bot.get_chat("-100ххх").id
-PERSONAL_CHAT_ID = bot.get_chat("ххх").id
+
 # declare global variables outside any function by using the global keyword
-global player1
-global player2
+# ИД Роли Игрок1
+global player1id
+global player1username
+global player1chat_id
+
+# ИД Роли Игрок2
+global player2id
+global player2username
+global player2chat_id
+
+# Постоянная переменная для хранения ИД и назначения счета
+global gainer1
+global gainer2
+
+# Счет
+global score
+
+# Ход
+global turn
 
 
 # Команда /help
@@ -58,22 +73,49 @@ def start_button_handler(message):
     bot.send_message(message.chat.id, start_message, reply_markup=markup)
 
 
-@bot.message_handler(commands=['random_photos_generator'])
+@bot.message_handler(commands=['random_photos_generator'], chat_types=['private'])
 def photo_generator_command(message):
-    global player1
-    bot.send_message(PERSONAL_CHAT_ID, message.from_user.username + ", Вы ♦️ Игрок 1 ♦️ Попросите партнера ввести /join"
-                                                                    "для"
-                                                                    "получения статуса ♠️ Игрок 2 ♠️")
-    #    bot.forward_message(GROUP_ID, message.chat.id, message.message_id)
-    player1 = message.from_user.username
+    global player1id
+    global player1username
+    global player1chat_id
+
+    bot.send_message(message.chat.id,
+                     message.from_user.username + ", Вы ♦️ Игрок 1 ♦️ Попросите партнера ввести /join"
+                                                  " для "
+                                                  "получения статуса ♠️ Игрок 2 ♠️")
+    player1id = message.from_user.id
+    player1username = message.from_user.username
+    player1chat_id = message.chat.id
+
+    # Проверка значений пользователя в консоли
+    print(" Игрок 1: ", player1id, player1username, player1chat_id)
 
 
 def handle_join(message: types.Message):
-    global player2
-    if message.text in trigger_list:
-        bot.send_message(GROUP_ID, message.from_user.username + " - Вы ♠️ Игрок 2 ♠️")
-        player2 = message.from_user.username
-        bot.send_message(GROUP_ID, message.from_user.username + " - получил статус ♠️ Игрок 2 ♠️")
+    global player2id
+    global player2username
+    global player2chat_id
+
+    if message.text.lower() == '/join':
+        bot.send_message(message.chat.id, player1username + " - Ваш оппонент и ♦️ Игрок 1 ♦️")
+        bot.send_message(message.chat.id, message.from_user.username + " - Вы ♠️ Игрок 2 ♠️")
+        bot.send_message(player1chat_id, message.from_user.username + " - получил статус ♠️ Игрок 2 ♠️")
+
+        player2id = message.from_user.id
+        player2username = message.from_user.username
+        player2chat_id = message.chat.id
+
+    # Проверка значений пользователя в консоли
+    print(" Игрок 2: ", player2id, player2username, player2chat_id)
+
+    # Проверка наличия двух пользователей для корректной игры, если всё ок, то используем pass (ничего не делает)
+    if player1id != player2id and player1id is not None and player2id is not None:
+        pass
+    else:
+        bot.send_message(player2chat_id,
+                         "Что-то пошло не так.Пожалуйста, инициируйте игру заново вернувшись в меню "
+                         "и следуйте инструкциям. Не забудьте попросить партнера ввести /join для "
+                         "получения статуса ♠️ Игрок 2 ♠️")
 
     # Создаём массив айди фотографий, девять элементов
     array_of_ids = []
@@ -82,18 +124,43 @@ def handle_join(message: types.Message):
         array_of_ids.append(random_photo_id)
 
     # Отправляем массив айди для общего чата с к-м элементов : 9
-    bot.send_media_group(GROUP_ID, [types.InputMediaPhoto(media) for media in array_of_ids])
+    bot.send_media_group(player2chat_id, [types.InputMediaPhoto(media) for media in array_of_ids])
 
     # Массив теряет три элемента,  мешается и отправляется Игроку 1
     # Антихитрин
     random.shuffle(array_of_ids)
     del array_of_ids[6:9]
     random.shuffle(array_of_ids)
-    bot.send_media_group(PERSONAL_CHAT_ID, [types.InputMediaPhoto(media) for media in array_of_ids])
+    bot.send_media_group(player1chat_id, [types.InputMediaPhoto(media) for media in array_of_ids])
 
     # Отправляем текст "Выбирайте карточку, не говорите оппоненту какую вы выбрали."
-    bot.send_message(PERSONAL_CHAT_ID, player1 + "  , выбирайте карточку, не говорите оппоненту какую вы выбрали.")
-    bot.send_message(GROUP_ID, player2 + " , готовьтесь слушать обьяснения ♦️ Игрока 1 ♦️")
+    bot.send_message(player1chat_id, player1username + ", выбирайте карточку, не говорите оппоненту какую вы "
+                                                       "выбрали.")
+    bot.send_message(player2chat_id, player2username + " , готовьтесь слушать обьяснения ♦️ Игрока 1 ♦️")
+
+    markupprep = types.InlineKeyboardMarkup()
+    buttonprep = types.InlineKeyboardButton(text="да", callback_data="yes", one_time_keyboard=True)
+    markupprep.add(buttonprep)
+    bot.send_message(player1chat_id, player1username + " , готовы 👀?", reply_markup=markupprep)
+
+    bot.register_next_step_handler(message, handle_answer)
+
+
+# Выбор угадал ли игрок и засчитывание победы
+
+
+def handle_answer(message):
+    bot.send_message(message.chat.id, "Обьясните ♠️ Игроку 2 ♠️ какая ассоциация у вас с выбранной карточкой.")
+    markup34 = types.InlineKeyboardMarkup()
+    button3 = types.InlineKeyboardButton(text="Угадал ☑️", callback_data="true", one_time_keyboard=True)
+    button4 = types.InlineKeyboardButton(text="Не угадал 🎲", callback_data="false", one_time_keyboard=True)
+    markup34.add(button3, button4)
+
+    bot.send_message(player1chat_id, player1username + " , угадал ли ♠️ Игрок 2 ♠️ вашу карточку?",
+                     reply_markup=markup34)
+
+
+# def scores_update(message):
 
 
 @bot.message_handler(commands=['photo_save'])
@@ -118,6 +185,55 @@ def handle_photos(message):
                          text=f"Идентификатор {file_id} уже обработан. Дубликаты не выводятся.")
 
 
+# Обработка нажатия inline кнопок
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    if call.data == "yes":
+        handle_answer(call.message)
+
+    global score
+    global turn
+
+    if call.data == "true":
+        bot.send_message(player2chat_id, player2username + " , вы угадали.")
+        bot.send_message(player1chat_id, player1username + " , выбор принят.")
+        try:
+            turn, score
+        except NameError:
+            turn, score = 0, 0
+
+        score += 1
+        turn += 1
+
+        print("ХОД:", turn, "СЧЕТ:", score)
+        handle_continue(call.message)
+
+    if call.data == "false":
+        bot.send_message(player2chat_id, player2username + " , вы не угадали")
+        bot.send_message(player1chat_id, player1username + " , выбор принят.")
+        try:
+            turn, score
+        except NameError:
+            turn, score = 0, 0
+        score += 0
+        turn += 1
+
+        print("ХОД:", turn, "СЧЕТ:", score)
+        handle_continue(call.message)
+
+    if call.data == "continue":
+        photo_generator_command(call.message)
+
+
+def handle_continue(message):
+    bot.send_message(message.chat.id, "Теперь ваша очередь отгадывать!")  # Это первому игроку
+    markup5 = types.InlineKeyboardMarkup()
+    button5 = types.InlineKeyboardButton(text="ПРОДОЛЖИТЬ", callback_data="continue", one_time_keyboard=True)
+    markup5.add(button5)
+    bot.send_message(player2chat_id, player2username + " , ваша очередь загадывать!",
+                     reply_markup=markup5)  # Это  игроку2 как и кнопка продолжить
+
+
 # Обработка любых текстовых сообщений
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
@@ -127,6 +243,8 @@ def handle_text(message):
         photo_save_command(message)
     elif message.text.lower() == '/join':
         handle_join(message)
+    elif message.text.lower() == 'да':
+        handle_answer(message)
     elif message.text.lower() == 'привет':
         bot.send_message(message.chat.id, "Привет! Чтобы начать, нажмите /start")
     else:
