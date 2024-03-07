@@ -4,6 +4,8 @@ from telebot import types
 from config import *
 from photo_file_ids import *
 
+# Import to generate a random session ID
+import string
 import random
 
 # Создаем бота для Telegram
@@ -25,18 +27,27 @@ player2 = Player(player_id=0, username="", chat_id=0)
 
 # Класс для хранения данных о игроках  вне свапов (Для корректного засчитывания очков и определения победы)
 class Gainer:
-    def __init__(self, player_id, username: str, score: int):
+    def __init__(self, player_id, username: str, score: int, session_id: str):
         self.player_id = player_id
         self.username = username
         self.score = score
+        self.session_id = session_id
 
 
 # Создание экземпляров класса Gainer
-gainer1 = Gainer(player_id=0, username="", score=0)
-gainer2 = Gainer(player_id=0, username="", score=0)
+gainer1 = Gainer(player_id=0, username="", score=0, session_id="")
+gainer2 = Gainer(player_id=0, username="", score=0, session_id="")
 
 # Ход игры
 global turn
+
+# Dictionary to store game sessions
+sessions = {}
+
+
+# Function to generate a random session ID
+def generate_session_id():
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 
 # Команда /help
@@ -94,16 +105,29 @@ def start_button_handler(message):
 @bot.message_handler(commands=['dixit_match_starter'], chat_types=['private'])
 def dixit_match_starter(message):
     bot.send_message(message.chat.id,
-                     message.from_user.username + ", Вы ♦️ Загадочник ♦️ Попросите партнера ввести /join"
-                                                  " для "
-                                                  "получения статуса ♠️ Угадайка ♠️ ")
+                     message.from_user.username + ", Вы ♦️ Загадочник ♦️")
 
     player1.player_id = message.from_user.id
     player1.username = message.from_user.username
     player1.chat_id = message.chat.id
 
+    # Добавляем игроков до свапа в глобальную переменную для засчитывания очков
+    gainer1.player_id = player1.player_id
+    gainer1.username = player1.username
+
+    # Generate a random session ID
+    session_id = generate_session_id()
+    sessions[session_id] = gainer1
+    gainer1.session_id = session_id
+
+    bot.send_message(message.chat.id, "Попросите партнера ввести /join для "
+                                      "получения статуса ♠️ Угадайка ♠️\n"
+                                      f"Ваш ID сессии: {session_id}.\nТакже отправьте его "
+                                      f"партнеру, чтобы он смог присоединиться.")
+
     # Проверка пользователя в консоли.Чтобы вывести содержимое объекта player,обращаемся к его атрибутам напрямую.
-    print(" Игрок 1: ", player1.player_id, player1.username, player1.chat_id)
+    print(" Игрок 1: ", player1.player_id, player1.username, player1.chat_id, gainer1.session_id)
+    print(sessions)
     bot.register_next_step_handler(message, handle_join)
 
 
@@ -115,7 +139,8 @@ def handle_check():
 
     else:
         bot.send_message(player2.chat_id,
-                         "Что-то пошло не так.Пожалуйста, инициируйте игру заново вернувшись в меню /start "
+                         "Вы не можете играть в одиночестве. Пожалуйста, инициируйте игру заново вернувшись в меню "
+                         "/start"
                          "и следуйте инструкциям. Не забудьте попросить партнера ввести /join для "
                          "получения статуса ♠️ Угадайка ♠️ ")
 
@@ -123,24 +148,31 @@ def handle_check():
 # Обработка команды /join и получении данных об присоединившемся игроке
 def handle_join(message: types.Message):
     if message.text.lower() == '/join':
+        bot.send_message(message.chat.id, "Введите ID сессии, к которой хотите присоединиться:")
+
+
+def handle_join_session(message: types.Message):
+    session_id = message.text
+    if session_id in sessions and gainer1.session_id == session_id:
         bot.send_message(message.chat.id, player1.username + " - Ваш оппонент и ♦️ Загадочник ♦️")
         bot.send_message(message.chat.id, message.from_user.username + " - Вы ♠️ Угадайка ♠️ ")
         bot.send_message(player1.chat_id, message.from_user.username + " - получил статус ♠️ Угадайка ♠️ ")
 
-    player2.player_id = message.from_user.id
-    player2.username = message.from_user.username
-    player2.chat_id = message.chat.id
+        player2.player_id = message.from_user.id
+        player2.username = message.from_user.username
+        player2.chat_id = message.chat.id
 
-    # Проверка значений пользователя в консоли
-    print(" Игрок 2: ", player2.player_id, player2.username, player2.chat_id)
+        # Добавляем игроков до свапа в глобальную переменную для засчитывания очков
+        gainer2.player_id = player2.player_id
+        gainer2.username = player2.username
 
-    # Добавляем игроков до свапа в глобальную переменную для засчитывания очков
-    gainer1.player_id = player1.player_id
-    gainer1.username = player1.username
-    gainer2.player_id = player2.player_id
-    gainer2.username = player2.username
-    if handle_check():
-        handle_array_of_ids()
+        # Проверка значений пользователя в консоли
+        print(" Игрок 2: ", player2.player_id, player2.username, player2.chat_id, gainer2.session_id)
+        if handle_check():
+            handle_array_of_ids()
+    else:
+        bot.send_message(message.chat.id, "Неверный ID сессии или игра уже началась.")
+        dixit_match_starter()
 
 
 # Генерация и отправка карточек пользователю на основе массива из айди загруженных на сервер ТГ фотографий
@@ -256,7 +288,7 @@ def handle_continue():
     else:
         bot.send_message(player1.chat_id, "Теперь ваша очередь отгадывать!")  # Это первому игроку
 
-        bot.send_message(player2.chat_id, player2.username + " , ваша очередь загадывать!")  # Это  игроку2 
+        bot.send_message(player2.chat_id, player2.username + " , ваша очередь загадывать!")  # Это  игроку2
         # Свап игроков местами
         player1.player_id, player2.player_id = player2.player_id, player1.player_id
         player1.chat_id, player2.chat_id = player2.chat_id, player1.chat_id
@@ -271,6 +303,9 @@ def handle_text(message):
         dixit_match_starter(message)
     elif message.text.lower() == '/join':
         handle_join(message)
+    elif message.text.upper() in sessions:
+        print("yes it fckng worked")
+        handle_join_session(message)
     elif message.text.lower() == 'да':
         handle_answer(message)
     elif message.text.lower() == 'привет':
