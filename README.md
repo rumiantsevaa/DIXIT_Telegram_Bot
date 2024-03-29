@@ -61,7 +61,9 @@ _Game Rules_
 ### Commands
 
 _/help:_ Displays detailed information about the game and its rules.
+
 _/start:_ Initiates the game and provides a button to start a new game.
+
 _/join:_ Allows the second player to join the game.
 
 ### Note:
