@@ -41,7 +41,9 @@ _Game Rules_
 ### How to Play
 
 * Start a new game with the "/start" command.
+  
 * Use "/join" to invite your partner to join the game.
+  
 * Follow the instructions to choose cards and provide clues.
 
 ![image](https://github.com/rumiantsevaa/DIXIT_Telegram_Bot/assets/89034072/326b20cf-18d8-49f0-9fab-621004acdd4b)
