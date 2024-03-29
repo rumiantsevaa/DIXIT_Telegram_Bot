@@ -8,7 +8,8 @@
 
 @DixitRBot is a Telegram bot designed for playing DIXIT: 9 lives mod for two players online. This Telegram bot built on Telebot and allows users to play a modified version of the popular card game DIXIT. 
 
-![Снимок экрана1111 (11)](https://github.com/rumiantsevaa/DIXIT_Telegram_Bot/assets/89034072/82c642b1-92f7-4770-a089-a79a1462b655)
+![winner-png-2](https://github.com/rumiantsevaa/DIXIT_Telegram_Bot/assets/89034072/e7b0a204-54c4-49b4-b209-065f7634aad2)
+
 
 The game is designed for two players and consists of nine rounds. Players take turns being the "Mysterious Narrator" and the "Guesser." The goal is to accumulate the highest score by successfully conveying and guessing the chosen card through associative clues.
 
