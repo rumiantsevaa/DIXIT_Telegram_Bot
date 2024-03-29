@@ -1,102 +1,32 @@
 import telebot
 from telebot import types
-
 from config import *
 from photo_file_ids import *
+from DIXIT_db import conn
+from utils import *
+from models import *
+from handlers import help_message, start_message
 
-# Import to generate a random session ID
-import string
-import random
+import sqlite3
+
 
 # Создаем бота для Telegram
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 
-# Создаем класс для хранения данных о игроках(значения будут свапаться)
-class Player:
-    def __init__(self, player_id: int, username: str, chat_id: int):
-        self.player_id = player_id
-        self.username = username
-        self.chat_id = chat_id
-
-
-# Создание экземпляров класса Player
-player1 = Player(player_id=0, username="", chat_id=0)
-player2 = Player(player_id=0, username="", chat_id=0)
-
-
-# Класс для хранения данных о игроках  вне свапов (Для корректного засчитывания очков и определения победы)
-class Gainer:
-    def __init__(self, player_id, username: str, score: int, session_id: str):
-        self.player_id = player_id
-        self.username = username
-        self.score = score
-        self.session_id = session_id
-
-
-# Создание экземпляров класса Gainer
-gainer1 = Gainer(player_id=0, username="", score=0, session_id="")
-gainer2 = Gainer(player_id=0, username="", score=0, session_id="")
-
-# Ход игры
-global turn
-
-# Dictionary to store game sessions
-sessions = {}
-
-
-# Function to generate a random session ID
-def generate_session_id():
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-
-
 # Команда /help
 @bot.message_handler(commands=['help'])
 def help_command(message):
-    help_message = (
-
-        "Команда 💫 DIXIT: Начать новую игру 💫 позволяет начать игру в DIXIT: 9 lives mod. Мод представляет из себя "
-        "версию "
-        "игры для двоих, которая проходит в девять раундов 🎲\n\n"
-        "♦️ ПРАВИЛА ИГРЫ в DIXIT: 9 lives mod: ♦️\n\n"
-        "1️⃣ Для игры в DIXIT: 9 lives mod необходимо инициировать игру кнопкой 💫 DIXIT: Начать новую игру 💫 и "
-        "предложить партнеру ввести команду"
-        " /join\n"
-        "2️⃣ В игре есть две роли ♦️ Загадочник ♦️ и ♠️ Угадайка ♠️. Инициирующий игрок будет первым ️ "
-        "Загадочником, а его партнер будет Угадайкой. Игроки будут меняться ролями в ходе игры.\n"
-        "3️⃣ В каждом ходе Загадочник будет выбирать карточку и его задачей будет не указывая на неё прямо "
-        "обьяснить Угадайке путём ассоциаций какую карточку он загадал.\n"
-        "4️⃣ Набор карточек у игроков отличается, но Угадайке всегда будет доступна любая загадываемая "
-        "карточка.\n"
-        "5️⃣ Победитель будет определяться по количеству набранных очков.\n\n"
-        "♦️ ПРАВИЛА НАБОРА ОЧКОВ: ♦️\n\n"
-        "1️⃣ Стандартный ход в случае угадывания карты приносит одно очко Угадайке, на Загадочника это не "
-        "влияет.\n"
-        "2️⃣ Поскольку приглашенный игрок, в отличии от инициатора имеет больше ходов, был введен суперход."
-        "В пятом ходе смекалка Угадайки не только принесет ему очко, но и вычтет одно у Загадочника."
-        "В обратном случае, невезение, напротив принесет дополнительное очко Загадочнику.\n\n"
-        "Игра направлена лишь на 🚀 хорошее времяпрепровождение вместе 🚀 и не содержит ❌намеренных соревновательных "
-        "критериев❌, "
-        "так что не печальтесь в случае проигрыша.\n\n"
-        "Если что-то пойдет не так, для перезапуска бота вы всегда можете ввести /start \n\n"
-        "Больше информации обо мне вы сможете найти посетив "
-        "https://github.com/rumiantsevaa/DIXIT_Telegram_Bot"
-    )
     bot.send_message(message.chat.id, help_message)
 
 
+# Команда /start
 @bot.message_handler(commands=['start'])
 def start_button_handler(message):
-    # Приветствие пользователя
-    start_message = ("Здраствуйте! Я бот для игры в DIXIT: 9 lives mod. Мне кажется мы уже где-то виделись🤔 Но, "
-                     "я совсем этого не помню. Чтобы начать игру,"
-                     "нажмите кнопку 💫 DIXIT: Начать новую игру 💫 или узнайте больше обо мне по команде /help.")
-
     # Создаем клавиатуру с кнопкой "Старт"
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     button1 = types.KeyboardButton("DIXIT: Начать новую игру")
     markup.add(button1)
-
     # Отправляем клавиатуру пользователю
     bot.send_message(message.chat.id, start_message, reply_markup=markup)
 
@@ -106,43 +36,45 @@ def start_button_handler(message):
 def dixit_match_starter(message):
     bot.send_message(message.chat.id,
                      message.from_user.username + ", Вы ♦️ Загадочник ♦️")
-
+    # Добавляем игроков в класс Player для определения ролей
     player1.player_id = message.from_user.id
     player1.username = message.from_user.username
     player1.chat_id = message.chat.id
 
-    # Добавляем игроков до свапа в глобальную переменную для засчитывания очков
+    # Добавляем игроков до свапа в класс Gainer для засчитывания очков
     gainer1.player_id = player1.player_id
     gainer1.username = player1.username
-
-    # Generate a random session ID
+    # Генерация радомного session ID и запись Gainer DB
     session_id = generate_session_id()
-    sessions[session_id] = gainer1
     gainer1.session_id = session_id
+
+    # Добавляем исключение в фильтр входящих сообщений
+    sessions[session_id] = gainer1.session_id
+
+    # Запись в базу данных для Player1
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO Gainers (gainer1_player_id, gainer1_username, gainer1_score, gainer1_session_id, "
+        "player1_player_id, player1_username, player1_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (gainer1.player_id, gainer1.username, 0, gainer1.session_id,
+         player1.player_id, player1.username, player1.chat_id))
+    conn.commit()
 
     bot.send_message(message.chat.id, "Попросите партнера ввести /join для "
                                       "получения статуса ♠️ Угадайка ♠️\n"
-                                      f"Ваш ID сессии: {session_id}.\nТакже отправьте его "
+                                      f"Ваш ID сессии: {gainer1.session_id}.\nТакже отправьте его "
                                       f"партнеру, чтобы он смог присоединиться.")
 
-    # Проверка пользователя в консоли.Чтобы вывести содержимое объекта player,обращаемся к его атрибутам напрямую.
-    print(" Игрок 1: ", player1.player_id, player1.username, player1.chat_id, gainer1.session_id)
-    print(sessions)
-    bot.register_next_step_handler(message, handle_join)
-
-
-# Проверка наличия двух разных пользователей для корректной игры
-def handle_check():
-    # Проверка наличия двух пользователей для корректной игры, если всё ок, то игра продолжается
-    if player1.player_id != 0 and player2.player_id != 0 and player1.player_id != player2.player_id:
-        return True
-
+    # По ID сессии выполняем запрос в базу данных на вывод всез данных о Gainer1 + Player1 (2 - None)
+    c.execute("SELECT * FROM Gainers WHERE gainer1_session_id = ?", [gainer1.session_id])
+    result = c.fetchone()
+    # Проверка на наличие значений в базе данных
+    if result:
+        result = list(result)
+        print("Row retrieved:", result)
     else:
-        bot.send_message(player2.chat_id,
-                         "Вы не можете играть в одиночестве. Пожалуйста, инициируйте игру заново вернувшись в меню "
-                         "/start"
-                         "и следуйте инструкциям. Не забудьте попросить партнера ввести /join для "
-                         "получения статуса ♠️ Угадайка ♠️ ")
+        print("No values found in the database for session ID:", gainer1.session_id)
+    bot.register_next_step_handler(message, handle_join)
 
 
 # Обработка команды /join и получении данных об присоединившемся игроке
@@ -153,147 +85,284 @@ def handle_join(message: types.Message):
 
 def handle_join_session(message: types.Message):
     session_id = message.text
-    if session_id in sessions and gainer1.session_id == session_id:
-        bot.send_message(message.chat.id, player1.username + " - Ваш оппонент и ♦️ Загадочник ♦️")
-        bot.send_message(message.chat.id, message.from_user.username + " - Вы ♠️ Угадайка ♠️ ")
-        bot.send_message(player1.chat_id, message.from_user.username + " - получил статус ♠️ Угадайка ♠️ ")
+    id_to_check = message.from_user.id
 
-        player2.player_id = message.from_user.id
-        player2.username = message.from_user.username
-        player2.chat_id = message.chat.id
+    # Query the database for the session_id
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM Gainers WHERE gainer1_session_id = ?", [session_id])
+    result = c.fetchone()
 
-        # Добавляем игроков до свапа в глобальную переменную для засчитывания очков
-        gainer2.player_id = player2.player_id
-        gainer2.username = player2.username
+    if result and result['gainer1_session_id'] == session_id:
+        if result['gainer1_session_id'] and result['gainer2_session_id'] is not None:
+            bot.send_message(message.chat.id,
+                             "Вы не можете влезть в чужую игру. Пожалуйста, инициируйте игру заново вернувшись в меню "
+                             "/start.")
+            return None
+        elif result['gainer1_player_id'] == id_to_check:
+            bot.send_message(player1.chat_id,
+                             "Вы не можете играть в одиночестве. Пожалуйста, инициируйте игру заново вернувшись в меню "
+                             "/start"
+                             " и следуйте инструкциям. Не забудьте попросить партнера ввести /join для "
+                             "получения статуса ♠️ Угадайка ♠️ ")
+            return None
+        else:
+            gainer2.session_id = session_id
 
-        # Проверка значений пользователя в консоли
-        print(" Игрок 2: ", player2.player_id, player2.username, player2.chat_id, gainer2.session_id)
-        if handle_check():
-            handle_array_of_ids()
+            bot.send_message(message.chat.id, player1.username + " - Ваш оппонент и ♦️ Загадочник ♦️")
+            bot.send_message(message.chat.id, message.from_user.username + " - Вы ♠️ Угадайка ♠️ ")
+            bot.send_message(player1.chat_id, message.from_user.username + " - получил статус ♠️ Угадайка ♠️ ")
+
+            player2.player_id = message.from_user.id
+            player2.username = message.from_user.username
+            player2.chat_id = message.chat.id
+
+            # Добавляем игроков до свапа в глобальную переменную для засчитывания очков
+            gainer2.player_id = player2.player_id
+            gainer2.username = player2.username
+
+            # Запись в бд таблицу Gainers Gainer2 + Player2 присоединившегося игрока
+            c = conn.cursor()
+            c.execute(
+                "UPDATE Gainers SET gainer2_player_id = ?, gainer2_username = ?, gainer2_score = ?, "
+                "gainer2_session_id = ?, player2_player_id = ?, player2_username = ?, player2_chat_id = ? WHERE "
+                "gainer1_session_id = ?",
+                (gainer2.player_id, gainer2.username, 0, gainer2.session_id,
+                 player2.player_id, player2.username, player2.chat_id, session_id))
+            conn.commit()
+
+            # По ID сессии выполняем запрос в базу данных на вывод всех данных о Gainer2 + 1
+            c.execute("SELECT * FROM Gainers WHERE gainer2_session_id = ?", [gainer2.session_id])
+            result = c.fetchone()
+
+            # Проверка на наличие значений в базе данных
+            if result:
+                result = list(result)
+                print("Row retrieved:", result)
+            else:
+                print("No values found in the database for session ID:", gainer2.session_id)
     else:
-        bot.send_message(message.chat.id, "Неверный ID сессии или игра уже началась.")
-        dixit_match_starter()
+        bot.send_message(message.chat.id, "Эта сессия не существует. Пожалуйста, инициируйте игру заново "
+                                          "вернувшись в меню /start.")
+        return None
+
+    c.close()
+    handle_array_of_ids(session_id)
 
 
 # Генерация и отправка карточек пользователю на основе массива из айди загруженных на сервер ТГ фотографий
-def handle_array_of_ids():
+def handle_array_of_ids(session_id):
     # Создаём массив айди фотографий, девять элементов
     array_of_ids = []
     for i in range(9):
         random_photo_id = random.choice(photo_file_ids)
         array_of_ids.append(random_photo_id)
 
+    # По ID сессии выполняем запрос о совпадение с данными игроков Gainers
+    c = conn.cursor()
+    c.execute("SELECT * FROM Gainers WHERE gainer2_session_id = ?", [session_id])
+    result = c.fetchone()
+
     # Отправляем массив айди для Угадайки с к-м элементов : 9
-    bot.send_media_group(player2.chat_id, [types.InputMediaPhoto(media) for media in array_of_ids])
+    bot.send_media_group(result["player2_chat_id"], [types.InputMediaPhoto(media) for media in array_of_ids])
 
     # Массив теряет три элемента,  мешается и отправляется Загадочнику
     # Антихитрин для исключения закономерности порядка элементов
     random.shuffle(array_of_ids)
     del array_of_ids[6:9]
     random.shuffle(array_of_ids)
-    bot.send_media_group(player1.chat_id, [types.InputMediaPhoto(media) for media in array_of_ids])
+    bot.send_media_group(result["player1_chat_id"], [types.InputMediaPhoto(media) for media in array_of_ids])
 
     # Отправляем текст "Выбирайте карточку, не говорите оппоненту какую вы выбрали."
-    bot.send_message(player1.chat_id, player1.username + ", выбирайте карточку, не говорите оппоненту "
-                                                         "какую вы"
-                                                         "выбрали.")
-    bot.send_message(player2.chat_id, player2.username + " , готовьтесь слушать обьяснения "
-                                                         "♦️ Загадочника ♦️")
+    bot.send_message(result["player1_chat_id"],
+                     result["player1_username"] + ", выбирайте карточку, не говорите оппоненту "
+                                                  "какую вы"
+                                                  "выбрали.")
+    bot.send_message(result["player2_chat_id"], result["player2_username"] + " , готовьтесь слушать обьяснения "
+                                                                             "♦️ Загадочника ♦️")
+    markup999 = types.InlineKeyboardMarkup()
+    button99 = types.InlineKeyboardButton(text="ДА", callback_data="yes", one_time_keyboard=True)
+    markup999.add(button99)
+    bot.send_message(result["player1_chat_id"], result["player1_username"] + " , готовы 👀?",
+                     reply_markup=markup999)
 
-    markupprep = types.InlineKeyboardMarkup()
-    buttonprep = types.InlineKeyboardButton(text="да", callback_data="yes", one_time_keyboard=True)
-    markupprep.add(buttonprep)
-    message = bot.send_message(player1.chat_id, player1.username + " , готовы 👀?", reply_markup=markupprep)
 
-    bot.register_next_step_handler(message, handle_answer)
+@bot.callback_query_handler(func=lambda call: call.data == "yes")
+def call_back_query_yes(call):
 
+    # Удаление инлайн кнопок после выбора игрока
+    bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                                  reply_markup=None)
+    # Открываем соединение и получаем курсор
+    c = conn.cursor()
 
-# Выбор угадал ли игрок и засчитывание победы
-def handle_answer(message):
-    bot.send_message(message.chat.id, "Обьясните ♠️ Угадайке ♠️  какая ассоциация у вас с выбранной карточкой.")
-    markup34 = types.InlineKeyboardMarkup()
-    button3 = types.InlineKeyboardButton(text="Угадал ☑️", callback_data="true", one_time_keyboard=True)
-    button4 = types.InlineKeyboardButton(text="Не угадал 🎲", callback_data="false", one_time_keyboard=True)
-    markup34.add(button3, button4)
+    # Выполняем запрос на выборку данных из таблицы Gainers
+    c.execute("SELECT * FROM Gainers WHERE player1_chat_id = ?", [call.message.chat.id])
+    result = c.fetchone()
 
-    bot.send_message(player1.chat_id, player1.username + " , угадал ли ♠️ Угадайка ♠️  вашу карточку?",
-                     reply_markup=markup34)
+    # Проверяем, что result не является None
+    if result:
+        bot.send_sticker(result["player1_chat_id"], cool_dogs_sticker)
+        bot.send_message(result["player1_chat_id"], "Обьясните ♠️ Угадайке ♠️  какая ассоциация у вас с выбранной "
+                                                    "карточкой.")
+        markup34 = types.InlineKeyboardMarkup()
+        button3 = types.InlineKeyboardButton(text="Угадал ☑️", callback_data="true", one_time_keyboard=True)
+        button4 = types.InlineKeyboardButton(text="Не угадал 🎲", callback_data="false", one_time_keyboard=True)
+        markup34.add(button3, button4)
+
+        bot.send_message(result["player1_chat_id"], result["player1_username"] + ", угадал ли ♠️ Угадайка ♠️  вашу "
+                                                                                 "карточку?",
+                         reply_markup=markup34)
+    else:
+        pass
 
 
 # Обработка нажатия inline кнопок
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
-    if call.data == "yes":
-        handle_answer(call.message)
-
-    global turn
-
     if call.data == "true":
-        bot.send_message(player2.chat_id, player2.username + " , вы угадали.")
-        bot.send_message(player1.chat_id, player1.username + " , выбор принят.")
-        try:
-            turn, gainer1.score, gainer2.score
-        except NameError:
-            turn, gainer1.score, gainer2.score = 1, 0, 0
+        # Удаление инлайн кнопок после выбора игрока
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                                      reply_markup=None)
+        # Открываем соединение и вытаскивая из коллбэка айдичата юзера сраниваем с player1_chat_id
+        c = conn.cursor()
+        c.execute("SELECT * FROM Gainers WHERE player1_chat_id = ?", [call.message.chat.id])
+        # Получаем заветную строку из бд
+        result = c.fetchone()
 
-        # Если ход нечетный, то Gainer 2 получает очко
-        if turn % 2 != 0:
-            gainer2.score += 1
-            print("Gainer 2 получает +1")
-        elif turn == 5:
-            gainer2.score += 1
-            gainer1.score -= 1
-        # Если ход четный, то Gainer 1 получает очко
-        else:
-            gainer1.score += 1
-            print("Gainer 1 получает +1")
-        print("ХОД:", turn, "СЧЕТ Gainer 1:", gainer1.score, "СЧЕТ Gainer 2:", gainer2.score)
-        turn += 1
-        handle_continue()
+        #  Проверяем, что result не является None
+        if result:
+            bot.send_message(result["player1_chat_id"], " ✅ Угадал ✅ ")
+            bot.send_message(result["player2_chat_id"], result["player2_username"] + " , вы угадали.")
+
+            # Проверяем, равны ли все поля нулю
+            if result["turn_in_db"] is None:
+                turn, gainer1.score, gainer2.score = 1, 0, 0
+            else:
+                turn = int(result["turn_in_db"])
+                gainer1.score = int(result["gainer1_score"])
+                gainer2.score = int(result["gainer2_score"])
+
+            # Если ход нечетный, то Gainer 2 получает очко
+            if turn % 2 != 0:
+                gainer2.score += 1
+                c.execute("UPDATE Gainers SET gainer2_score = ? WHERE player1_chat_id = ?", (gainer2.score,
+                                                                                             call.message.chat.id))
+            elif turn == 5:
+                gainer2.score += 1
+                gainer1.score -= 1
+                c.execute("UPDATE Gainers SET gainer2_score = ?, gainer1_score = ? WHERE player1_chat_id = ?",
+                          (gainer2.score, gainer1.score, call.message.chat.id))
+            # Если ход четный, то Gainer 1 получает очко
+            else:
+                gainer1.score += 1
+            c.execute("UPDATE Gainers SET gainer1_score  = ? WHERE player1_chat_id = ?", (gainer1.score,
+                                                                                          call.message.chat.id))
+            turn += 1
+            c.execute("UPDATE Gainers SET turn_in_db = ? WHERE player1_chat_id = ?", (turn, call.message.chat.id))
+            session_id = result["gainer2_session_id"]
+            conn.commit()
+
+            handle_continue(session_id)
 
     if call.data == "false":
-        bot.send_message(player2.chat_id, player2.username + " , вы не угадали")
-        bot.send_message(player1.chat_id, player1.username + " , выбор принят.")
-        try:
-            turn, gainer1.score, gainer2.score
-        except NameError:
-            turn, gainer1.score, gainer2.score = 0, 0, 0
-        if turn == 5:
-            gainer2.score -= 1
-            gainer1.score += 1
-        else:
-            gainer1.score += 0
-            gainer2.score += 0
+        # Удаление инлайн кнопок после выбора игрока
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                                      reply_markup=None)
+        # Открываем соединение и вытаскивая из коллбэка айдичата юзера сраниваем с player1_chat_id
+        c = conn.cursor()
+        c.execute("SELECT * FROM Gainers WHERE player1_chat_id = ?", [call.message.chat.id])
+        # Получаем заветную строку из бд
+        result = c.fetchone()
+
+        #  Проверяем, что result не является None
+        if result:
+            bot.send_message(result["player2_chat_id"], result["player2_username"] + " , вы не угадали.")
+            bot.send_message(result["player1_chat_id"], " ❌ Не угадал ❌ ")
+
+            # Проверяем, равны ли все поля нулю
+            if result["turn_in_db"] is None:
+                turn, gainer1.score, gainer2.score = 1, 0, 0
+            else:
+                turn = int(result["turn_in_db"])
+                gainer1.score = int(result["gainer1_score"])
+                gainer2.score = int(result["gainer2_score"])
+
+            if turn == 5:
+                gainer2.score -= 1
+                gainer1.score += 1
+                c.execute("UPDATE Gainers SET gainer2_score = ?, gainer1_score = ? WHERE player1_chat_id = ?",
+                          (gainer2.score, gainer1.score, call.message.chat.id))
+            else:
+                gainer1.score += 0
+                gainer2.score += 0
+                c.execute("UPDATE Gainers SET gainer1_score = ?, gainer2_score = ? WHERE player1_chat_id = ?",
+                          (gainer1.score, gainer2.score, call.message.chat.id))
+
             turn += 1
+            c.execute("UPDATE Gainers SET turn_in_db = ? WHERE player1_chat_id = ?", (turn, call.message.chat.id))
 
-        print("ХОД:", turn, "СЧЕТ Геймер 1:", gainer1.score, "СЧЕТ Геймер 2:", gainer2.score)
-        handle_continue()
+            # Выборка данных из таблицы Gainers для отправки в следующую функцию
+            session_id = result["gainer2_session_id"]
+            conn.commit()
+            handle_continue(session_id)
+        else:
+            pass
 
 
-def handle_continue():
-    if turn == 9:
+def handle_continue(session_id):
+    c = conn.cursor()
+    c.execute("SELECT * FROM Gainers WHERE gainer2_session_id = ?", [session_id])
+    result = c.fetchone()
+    turn = int(result["turn_in_db"])
+    gainer1.score = int(result["gainer1_score"])
+    gainer2.score = int(result["gainer2_score"])
+
+    if turn == 10:
         winner = gainer1.score > gainer2.score
         if winner:
-            bot.send_message(player1.chat_id, "🔥🔥" + gainer1.username + "🔥🔥 - Вы победитель")
-            bot.send_message(player2.chat_id, "👾" + gainer2.username + "👾 - Вы проиграли")
+            bot.send_message(int(result["player1_chat_id"]), "🔥🔥" + str(result["gainer1_username"]) + "🔥🔥 - Вы "
+                                                                                                      "победитель")
+            bot.send_sticker(int(result["player1_chat_id"]), winner_sticker)
+            bot.send_message(int(result["player2_chat_id"]), "👾" + str(result["gainer2_username"]) + "👾 - Вы проиграли")
         elif gainer1.score == gainer2.score:
-            bot.send_message(player1.chat_id, "🤔 НИЧЬЯ 🤔")
-            bot.send_message(player2.chat_id, "🤔 НИЧЬЯ 🤔")
+            bot.send_message(int(result["player1_chat_id"]), "🤔 НИЧЬЯ 🤔")
+            bot.send_sticker(int(result["player1_chat_id"]), okay_sticker)
+            bot.send_message(int(result["player2_chat_id"]), "🤔 НИЧЬЯ 🤔")
+            bot.send_sticker(int(result["player2_chat_id"]), okay_sticker)
         else:
-            bot.send_message(player1.chat_id, "🔥🔥" + gainer2.username + "🔥🔥 - Вы победитель")
-            bot.send_message(player2.chat_id, "👾" + gainer1.username + "👾 - Вы проиграли")
+            bot.send_message(int(result["player2_chat_id"]), "🔥🔥" + str(result["gainer2_username"]) + "🔥🔥 - Вы "
+                                                                                                      "победитель")
+            bot.send_sticker(int(result["player2_chat_id"]), winner_sticker)
+            bot.send_message(int(result["player1_chat_id"]), "👾" + str(result["gainer1_username"]) + "👾 - Вы проиграли")
 
-        bot.send_message(player1.chat_id, "Игра окончена")
-        bot.send_message(player2.chat_id, "Игра окончена")
+        bot.send_sticker(int(result["player1_chat_id"]), game_over_sticker)
+        bot.send_sticker(int(result["player2_chat_id"]), game_over_sticker)
+        # Запрещаем повторные запросы
+        c.execute("SELECT * FROM Gainers WHERE gainer2_session_id = ?", [session_id])
+        result = c.fetchone()
+        if int(result["turn_in_db"]) == 10:
+            bot.send_message(int(result["player1_chat_id"]), "Ваши данные будут удалены. Если желаете сыграть еще раз, "
+                                                             "выберите команду /start")
+            bot.send_message(int(result["player2_chat_id"]), "Ваши данные будут удалены. Если желаете сыграть еще раз, "
+                                                             "выберите команду /start")
+            c.execute("DELETE FROM Gainers WHERE gainer2_session_id = ?", [session_id])
+            conn.commit()
     else:
-        bot.send_message(player1.chat_id, "Теперь ваша очередь отгадывать!")  # Это первому игроку
+        bot.send_message(int(result["player1_chat_id"]), "Теперь ваша очередь отгадывать!")
 
-        bot.send_message(player2.chat_id, player2.username + " , ваша очередь загадывать!")  # Это  игроку2
+        bot.send_message(int(result["player2_chat_id"]),
+                         str(result["player2_username"]) + " , ваша очередь загадывать!")
+
         # Свап игроков местами
-        player1.player_id, player2.player_id = player2.player_id, player1.player_id
-        player1.chat_id, player2.chat_id = player2.chat_id, player1.chat_id
-        player1.username, player2.username = player2.username, player1.username
-        handle_array_of_ids()
+        c.execute("""UPDATE Gainers SET player1_player_id = ?, player1_username = ?, player1_chat_id = ?,
+                player2_player_id = ?, player2_username = ?, player2_chat_id = ? WHERE gainer2_session_id = ?
+        """, (int(result["player2_player_id"]), str(result["player2_username"]), int(result["player2_chat_id"]),
+              int(result["player1_player_id"]),
+              str(result["player1_username"]), int(result["player1_chat_id"]), session_id))
+        conn.commit()
+        print(result)
+        handle_array_of_ids(session_id)
 
 
 # Обработка любых текстовых сообщений
@@ -304,10 +373,7 @@ def handle_text(message):
     elif message.text.lower() == '/join':
         handle_join(message)
     elif message.text.upper() in sessions:
-        print("yes it fckng worked")
         handle_join_session(message)
-    elif message.text.lower() == 'да':
-        handle_answer(message)
     elif message.text.lower() == 'привет':
         bot.send_message(message.chat.id, "Привет! Чтобы начать, нажмите /start")
     else:
