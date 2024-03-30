@@ -50,7 +50,8 @@ _Game Rules_
 
 * Use built-in buttons to confirm guesses and continue the game.
 
-![photo_2024-03-29_15-09-55](https://github.com/rumiantsevaa/DIXIT_Telegram_Bot/assets/89034072/073a549a-84ca-4fc1-87a2-4d044b7b2f2a)
+![318054172-073a549a-84ca-4fc1-87a2-4d044b7b2f2a](https://github.com/rumiantsevaa/DIXIT_Telegram_Bot/assets/89034072/92039c75-feaa-45c7-ad3b-83036f5f00c7)
+
 
   
 * The game ends after nine rounds, and the winner is announced.
