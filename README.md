@@ -4,7 +4,7 @@
 
 ### Overview
 
-@DixitRBot is a Telegram bot designed for playing **DIXIT: 9 Lives Mod** — a two-player adaptation of the popular board game **DIXIT**, focused on deep associative gameplay and turn-based storytelling.
+[@DixitRBot](https://t.me/DixitRBot) is a Telegram bot designed for playing **DIXIT: 9 Lives Mod** — a two-player adaptation of the popular board game **DIXIT**, focused on deep associative gameplay and turn-based storytelling.
 
 
 ![winner-png-2](https://github.com/rumiantsevaa/DIXIT_Telegram_Bot/assets/89034072/e7b0a204-54c4-49b4-b209-065f7634aad2)
