@@ -9,6 +9,21 @@ from handlers import help_message, start_message
 
 import sqlite3
 
+from datetime import datetime, timedelta
+
+def can_start_new_game(user_id):
+    c = conn.cursor()
+    c.execute('''
+        SELECT game_end_time FROM GamesHistory 
+        WHERE gainer1_player_id = ? OR gainer2_player_id = ?
+        ORDER BY game_end_time DESC LIMIT 1
+    ''', (user_id, user_id))
+    result = c.fetchone()
+    if result and result[0]:
+        last_game_end = datetime.fromisoformat(result[0])
+        if datetime.now() < last_game_end + timedelta(days=1):
+            return False
+    return True
 
 # Создаем бота для Telegram
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
@@ -34,6 +49,22 @@ def start_button_handler(message):
 # Начало новой игры, получение данных об инициализирующем игроке
 @bot.message_handler(commands=['dixit_match_starter'], chat_types=['private'])
 def dixit_match_starter(message):
+    # Check if player can start a new game (24-hour limit)
+    if not can_start_new_game(message.from_user.id):
+        bot.send_message(message.chat.id, "Вы уже сыграли сегодня. Подождите до завтра, чтобы начать новую игру.")
+        return
+    
+    # Check for existing session in the database
+    c = conn.cursor()
+    c.execute('SELECT gainer1_session_id FROM Gainers WHERE gainer1_player_id = ?', (message.from_user.id,))
+    result = c.fetchone()
+    
+    if result:
+        session_to_delete = result[0]
+        c.execute('DELETE FROM Gainers WHERE gainer1_session_id = ?', (session_to_delete,))
+        conn.commit()
+        bot.send_message(message.chat.id, f"Ваша предыдущая игра была удалена. Начинаем новую игру!")
+
     bot.send_message(message.chat.id,
                      message.from_user.username + ", Вы ♦️ Загадочник ♦️")
     # Добавляем игроков в класс Player для определения ролей
@@ -86,6 +117,22 @@ def handle_join(message: types.Message):
 def handle_join_session(message: types.Message):
     session_id = message.text
     id_to_check = message.from_user.id
+
+    # Check 24-hour limit for joining player
+    if not can_start_new_game(id_to_check):
+        bot.send_message(message.chat.id, "Вы уже сыграли сегодня. Подождите до завтра, чтобы присоединиться к новой игре.")
+        return
+
+    # Check for existing session in the database for joining player
+    c = conn.cursor()
+    c.execute('SELECT gainer1_session_id FROM Gainers WHERE gainer2_player_id = ?', (id_to_check,))
+    result = c.fetchone()
+    
+    if result:
+        session_to_delete = result[0]
+        c.execute('DELETE FROM Gainers WHERE gainer1_session_id = ?', (session_to_delete,))
+        conn.commit()
+        bot.send_message(message.chat.id, f"Ваша предыдущая игра была удалена. Присоединяемся к новой игре!")
 
     # Query the database for the session_id
     conn.row_factory = sqlite3.Row
@@ -152,11 +199,11 @@ def handle_join_session(message: types.Message):
 
 # Генерация и отправка карточек пользователю на основе массива из айди загруженных на сервер ТГ фотографий
 def handle_array_of_ids(session_id):
-    # Создаём массив айди фотографий, девять элементов
-    array_of_ids = []
-    for i in range(9):
-        random_photo_id = random.choice(photo_file_ids)
-        array_of_ids.append(random_photo_id)
+    array_of_ids = random.sample(photo_file_ids, 9) # Создаём массив айди фотографий, девять элементов без повторений 
+    # array_of_ids = []
+    # for i in range(9):
+    #     random_photo_id = random.choice(photo_file_ids)
+    #     array_of_ids.append(random_photo_id)
 
     # По ID сессии выполняем запрос о совпадение с данными игроков Gainers
     c = conn.cursor()
@@ -346,6 +393,11 @@ def handle_continue(session_id):
                                                              "выберите команду /start")
             bot.send_message(int(result["player2_chat_id"]), "Ваши данные будут удалены. Если желаете сыграть еще раз, "
                                                              "выберите команду /start")
+            now_str = datetime.now().isoformat()
+            # Сохраняем завершённую игру в историю
+            c.execute("INSERT INTO GamesHistory (gainer1_player_id, gainer2_player_id, game_end_time) VALUES (?, ?, ?)",
+                      (result["gainer1_player_id"], result["gainer2_player_id"], now_str))
+            conn.commit()
             c.execute("DELETE FROM Gainers WHERE gainer2_session_id = ?", [session_id])
             conn.commit()
     else:
