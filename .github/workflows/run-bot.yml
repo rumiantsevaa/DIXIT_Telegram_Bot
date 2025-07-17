@@ -1,0 +1,32 @@
+name: Launch Telegram Bot on PythonAnywhere
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install selenium 
+        pip install undetected-chromedriver
+
+    - name: Run Selenium bot launcher
+      env:
+        PA_USERNAME: ${{ secrets.PA_USERNAME }}
+        PA_PASSWORD: ${{ secrets.PA_PASSWORD }}
+      run: |
+        python bot_launcher.py
