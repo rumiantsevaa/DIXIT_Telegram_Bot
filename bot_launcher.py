@@ -56,20 +56,12 @@ def run():
     time.sleep(2)
     open_link = driver.find_element(By.CSS_SELECTOR, f'a[href="/user/{USERNAME}/consoles/bash//home/{USERNAME}/new"]')
     open_link.click()
-    time.sleep(5)
+    time.sleep(10)
 
-
-    driver.get(f"https://www.pythonanywhere.com/user/{USERNAME}/consoles/")
-    time.sleep(3)
-
-    iframe = driver.find_element(By.TAG_NAME, "iframe")
-    driver.switch_to.frame(iframe)
-    time.sleep(2)
-
+    
     body = driver.find_element(By.TAG_NAME, "body")
     body.send_keys(f"python3 pythonanywhere_starter.py\n")
-
-    time.sleep(5)
+    time.sleep(5)  
     driver.quit()
 
 if __name__ == "__main__":
