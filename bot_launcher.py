@@ -3,6 +3,7 @@ import time
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 
 USERNAME = os.getenv("PA_USERNAME")
 PASSWORD = os.getenv("PA_PASSWORD")
@@ -59,11 +60,16 @@ def run():
     time.sleep(10)
 
     
+    driver.switch_to.frame(driver.find_element(By.ID, "id_console"))
+    time.sleep(5)
+    
     body = driver.find_element(By.TAG_NAME, "body")
-    body.send_keys(f"python3 pythonanywhere_starter.py\n")
-    time.sleep(5)  
+    actions = ActionChains(driver)
+    actions.move_to_element(body).click()
+    actions.send_keys('python3 pythonanywhere_starter.py')
+    actions.send_keys(Keys.ENTER)
+    actions.perform()
     driver.quit()
 
-if __name__ == "__main__":
-    run()
 
+run()
