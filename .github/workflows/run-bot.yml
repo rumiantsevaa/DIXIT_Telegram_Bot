@@ -18,6 +18,11 @@ jobs:
       with:
         python-version: "3.10"
 
+    - name: Get Chrome version
+      run: |
+        google-chrome --version | awk '{print $3}' | cut -d'.' -f1 > chrome_version.txt
+        echo "CHROME_VERSION=$(cat chrome_version.txt)" >> $GITHUB_ENV
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -28,5 +33,6 @@ jobs:
       env:
         PA_USERNAME: ${{ secrets.PA_USERNAME }}
         PA_PASSWORD: ${{ secrets.PA_PASSWORD }}
+        CHROME_VERSION: ${{ env.CHROME_VERSION }}
       run: |
         python bot_launcher.py
